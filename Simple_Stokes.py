@@ -41,10 +41,10 @@ def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0):
         DESCRIPTION.
     power_arr : Numpy array.
         Power for given QWP angles. 
-    spacing : Integer.
+    spacing : Float.
         Spacing between angles of the QWP. Requires equally spaced measurements.
-    angle_extent : Integer.
-        Range of QWP angles used. 180 or 360. Note: Measurements for the final 
+    angle_extent : 180 or 360.
+        Range of QWP angles used. Note: Measurements for the final 
         angle do not need to be measured (i.e. measurements for 22.5 spacing 
         only need to go up to 157.5 for N = 8), but angle_extent should be 
         multiples of 180.
@@ -186,10 +186,10 @@ def PM100D_stokes(path, filenames, spacing, angle_extent, flip = 1, data_mod = F
             filenames = []
             for i in range(1, 9):
                 filenames.append(f"DATA0{i}.CSV")
-    spacing : Integer.
+    spacing : Float.
         Spacing between angles of the QWP. Requires equally spaced measurements.
-    angle_extent : Integer.
-        Range of QWP angles used. 180 or 360. Note: Measurements for the final 
+    angle_extent :  180 or 360.
+        Range of QWP angles used. Note: Measurements for the final 
         angle do not need to be measured (i.e. measurements for 22.5 spacing 
         only need to go up to 157.5 for N = 8), but angle_extent should be 
         multiples of 180.
