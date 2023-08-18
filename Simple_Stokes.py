@@ -5,8 +5,6 @@ Created on Tue Apr 11 15:48:19 2023
 @author: alexm
 
 Simple functions to quickly calculate Stokes parameters from various data types. 
-For more complex opperations (Parameters by wavelength, CD/CPL, etc.) use the 
-CPL library.
 
 Recommended style: 
     import Simple_Stokes as SS
@@ -14,8 +12,13 @@ Recommended style:
     SS.simple_stokes(~parameters~)
 
 Currently supported data types: 
+    uneven_stokes: **Recommended**. Takes arrays of QWP angles (any spacing) 
+        and matching intensities to generate Stokes parameters.
+    
+    
     simple_stokes: simple arrays of intensities with matching QWP angle arrays.
     PM100D_stokes: .CSV files generated from a Thorlabs PM100D power meter.
+    
     
 """
 
@@ -28,7 +31,7 @@ import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
 
 
-def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0): 
+def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0, dontplot = False, Scatter = True, do_simulation = False): 
     """
     Basic stokes calculator which takes a degree and corresponding power array. 
     Plots data but does not execute plt.show(), so subsequent commands to modify 
@@ -41,10 +44,10 @@ def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0):
         DESCRIPTION.
     power_arr : Numpy array.
         Power for given QWP angles. 
-    spacing : Float.
+    spacing : Integer.
         Spacing between angles of the QWP. Requires equally spaced measurements.
-    angle_extent : 180 or 360.
-        Range of QWP angles used. Note: Measurements for the final 
+    angle_extent : Integer.
+        Range of QWP angles used. 180 or 360. Note: Measurements for the final 
         angle do not need to be measured (i.e. measurements for 22.5 spacing 
         only need to go up to 157.5 for N = 8), but angle_extent should be 
         multiples of 180.
@@ -78,7 +81,7 @@ def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0):
     _N = int(angle_extent/spacing)
 
     N = len(power_arr)
-    
+
     loop = True
     while loop:
         if N%_N !=0: 
@@ -101,6 +104,8 @@ def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0):
         B += p * s2
         C += p * c4
         D += p * s4
+        
+        
 
 
     A = A * 2 / N
@@ -141,23 +146,16 @@ def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0):
     
     '''Full simulation fit'''
     range_ = (N * spacing)*np.pi/180
-
-    sim_ang_arr = np.linspace(0, range_, 360)
-    sim_I = 1/2 * (I + Q*(np.cos(2*sim_ang_arr))**2 + U*np.cos(2*sim_ang_arr)*np.sin(2*sim_ang_arr) + V*np.sin(2*sim_ang_arr))
-
-    data_print_round = rf"N = {N},  $R^2_{{adj}}$ = {round(R2bar, 6)}, dop = {round(dop, 3)}" + "\n" + rf"$S_{{norm}}$ = [{round(I/I, 3)}, {round(Q/I, 3)}, {round(U/I, 3)}, {round(V/I, 3)}]"
-    data_print_unround = rf"N = {N},  $R^2_{{adj}}$ = R2bar, dop = {dop}" + "\n" + rf"$S_{{norm}}$ = [{I/I}, {Q/I}, {U/I}, {V/I}]"
-
-    print(data_print_unround)
     
-    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(5,5), dpi = 300)
+    sim_ang_arr = 0
+    sim_I = 0
+    
+    if do_simulation: 
+        sim_ang_arr = np.linspace(0, range_, 36000)
+        sim_I = 1/2 * (I + Q*(np.cos(2*sim_ang_arr))**2 + U*np.cos(2*sim_ang_arr)*np.sin(2*sim_ang_arr) + V*np.sin(2*sim_ang_arr))
 
-
-    ax.plot(np.deg2rad(degree_arr), power_arr, color = "k", label = "Experiment")
-    ax.plot(sim_ang_arr, sim_I, color = "r", label = "Fit")
-    plt.ylim(0, 1.1)
-
-    plt.title(data_print_round)
+    data_print_round = rf"N = {N},  $R^2_{{adj}}$ = {round(R2bar, 6)}, dop = {round(dop, 3)}" + "\n" + rf"$S_{{norm}}$ = [{round(I/I, 3)}, {round(Q/I, 5)}, {round(U/I, 5)}, {round(V/I, 5)}]"
+    data_print_unround = rf"N = {N},  $R^2_{{adj}}$ = {R2bar}, dop = {dop}" + "\n" + rf"$S_{{norm}}$ = [{I/I}, {Q/I}, {U/I}, {V/I}]"
     
     use_dict = {"A": A, "B": B, "C": C, "D": D, 
                 "I": I, "Q": Q, "U": U, "V": V, 
@@ -167,6 +165,24 @@ def simple_stokes(degree_arr, power_arr, spacing, angle_extent, N_choice = 0):
                 "Reconstruction": re_arr, 
                 "Fit_rad": sim_ang_arr, "Fit_I": sim_I, 
                 "Rounded Printout": data_print_round, "Unrounded Printout": data_print_unround}
+    
+    if dontplot: 
+        return use_dict
+    
+    print(data_print_unround)
+    
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(5,5), dpi = 300)
+
+    if Scatter:
+        ax.plot(sim_ang_arr, sim_I, color = "r", label = "Fit", lw = 1)
+        ax.scatter(np.deg2rad(degree_arr), power_arr, color = "k", label = "Experiment", s = 1, zorder = 10)
+    if not Scatter: 
+        ax.plot(np.deg2rad(degree_arr), power_arr, color = "k", label = "Experiment", lw = 0.5)
+        ax.plot(sim_ang_arr, sim_I, color = "r", label = "Fit", lw = 0.5)
+        
+    plt.ylim(0, 1.1)
+
+    plt.title(data_print_round)
     
     return use_dict
     
@@ -186,10 +202,10 @@ def PM100D_stokes(path, filenames, spacing, angle_extent, flip = 1, data_mod = F
             filenames = []
             for i in range(1, 9):
                 filenames.append(f"DATA0{i}.CSV")
-    spacing : Float.
+    spacing : Integer.
         Spacing between angles of the QWP. Requires equally spaced measurements.
-    angle_extent :  180 or 360.
-        Range of QWP angles used. Note: Measurements for the final 
+    angle_extent : Integer.
+        Range of QWP angles used. 180 or 360. Note: Measurements for the final 
         angle do not need to be measured (i.e. measurements for 22.5 spacing 
         only need to go up to 157.5 for N = 8), but angle_extent should be 
         multiples of 180.
@@ -340,5 +356,179 @@ def PM100D_stokes(path, filenames, spacing, angle_extent, flip = 1, data_mod = F
     plt.title(data_print_round)
     
     print(data_print_unround)
+    
+    return use_dict
+
+
+def uneven_stokes(degree_arr, power_arr, N_choice = 0, dontplot = False, Scatter = True, fit_top = True, color_time = True, alpha = 0.1, ret = np.pi/2, flip = 1): 
+    """
+    Basic stokes calculator which takes a degree and corresponding power array. 
+    Plots data but does not execute plt.show(), so subsequent commands to modify 
+    the graph can be written after calling the function.
+
+    Parameters
+    ----------
+    degree_arr : Numpy array. 
+        QWP angle in degrees. Use np.asarray(LIST) if data is type list. 
+        DESCRIPTION.
+    power_arr : Numpy array.
+        Power for given QWP angles. 
+    spacing : Integer.
+        Spacing between angles of the QWP.
+    angle_extent : Integer.
+        Range of QWP angles used. 180 or 360. Note: Measurements for the final 
+        angle do not need to be measured (i.e. measurements for 22.5 spacing 
+        only need to go up to 157.5 for N = 8), but angle_extent should be 
+        multiples of 180.
+    N_choice : Integer, optional. 
+        Option to manually set N instead of using the value picked by the code. 
+        Not recommended to change and is primarily for debugging purposes. 
+        The default is 0.
+
+    Returns
+    -------
+    use_dict : Dictionary.
+        Dictionary to return all relevant values of the calculation.
+        Keys: "A", "B", "C", "D", "I", "Q", "U", "V", "dop" (degree of polarization), 
+            "R2" (R-squared), "R2bar" (Corrected R-squared accounting for fitting multiple variables), 
+            "Angles" (returns input degree_arr, used to match for graphing), 
+            "Experiment" (returns input power_arr, used to match for graphing),
+            "Reconstruction" (fitting of points at matching input angle array),
+            "Fit_rad" (Continuous angle array for fitted intensities in radians), 
+            "Fit_I" (Fitted intensities), 
+            "Rounded Printout" (Summary of relevant data, rounded to fit as a graph title), 
+            "Unrounded Printout" (Summary of relevant data, unrounded and printed to console by default)
+    """
+    
+    rad_arr = np.deg2rad(degree_arr)
+
+    M = np.zeros((4, 4))
+
+    N = len(power_arr)
+    
+    A_ = 0
+    B_ = 0
+    C_ = 0 
+    D_ = 0 
+        
+    if N_choice: 
+        N = N_choice
+    
+    for _a in range(N):
+        theta = rad_arr[_a]
+        s2 = np.sin(2*theta)
+        c4 = np.cos(4*theta)
+        s4 = np.sin(4*theta)
+        
+        p = power_arr[_a]
+        
+        A_ += p 
+        B_ += p * s2
+        C_ += p * c4
+        D_ += p * s4
+        
+        M[0][0] += 1
+        M[0][1] += s2
+        M[0][2] += c4
+        M[0][3] += s4
+        
+        M[1][0] += s2
+        M[1][1] += s2 * s2 
+        M[1][2] += c4 * s2
+        M[1][3] += s4 * s2
+        
+        M[2][0] += c4
+        M[2][1] += s2 * c4
+        M[2][2] += c4 * c4
+        M[2][3] += s4 * c4
+        
+        M[3][0] += s4
+        M[3][1] += s2 * s4
+        M[3][2] += c4 * s4
+        M[3][3] += s4 * s4
+        
+        
+    M = 1/2 * M
+    
+    S = np.array([A_, B_, C_, D_])
+
+    xx = np.linalg.solve(M, S)
+
+    A, B, C, D = xx[0], xx[1], xx[2], xx[3]
+    
+
+    I = A - flip * C
+    Q = flip * 2 * C / (1 + np.cos(ret))
+    U = flip * 2 * D / (1 - np.cos(ret))
+    V = flip * B / np.sin(ret)
+    
+    dop = np.sqrt(Q**2 + U**2 + V**2)/I
+    
+    re_arr = np.array([])
+    
+    for _a in range(len(power_arr)): 
+        theta = rad_arr[_a]
+        s2 = np.sin(2*theta)
+        c4 = np.cos(4*theta)
+        s4 = np.sin(4*theta)
+        
+        re = 1/2 * (A + B*s2 + C*c4 + D*s4)
+        re_arr = np.append(re_arr, re)
+
+    Sr = 0
+    St = 0
+    average = sum(power_arr)/len(power_arr)
+    
+
+    for _a in range(len(power_arr)): 
+        Sr += (power_arr[_a] - re_arr[_a])**2
+        St += (power_arr[_a] - average)**2
+        
+    R2 = (St - Sr)/St
+    R2bar = 1 - (1 - R2) * (N-1)/(N-4)  # Modified R2 to account for fitting multiple variables
+    
+    '''Full simulation fit'''
+
+    sim_ang_arr = np.linspace(0, 360, 360000)
+    sim_I = 1/2 * (I + Q*(np.cos(2*sim_ang_arr))**2 + U*np.cos(2*sim_ang_arr)*np.sin(2*sim_ang_arr) + V*np.sin(2*sim_ang_arr))
+
+    data_print_round = rf"N = {N},  $R^2$ = {round(R2, 6)}, dop = {round(dop, 3)}" + "\n" + rf"$S_{{norm}}$ = [{round(I/I, 3)}, {round(Q/I, 5)}, {round(U/I, 5)}, {round(V/I, 5)}]"
+    data_print_unround = rf"N = {N},  $R^2_{{adj}}$ = {R2bar}, dop = {dop}" + "\n" + rf"$S_{{norm}}$ = [{I/I}, {Q/I}, {U/I}, {V/I}]"
+    
+    use_dict = {"A": A, "B": B, "C": C, "D": D, 
+                "I": I, "Q": Q, "U": U, "V": V, 
+                "dop": dop, 
+                "R2": R2, "R2bar": R2bar, 
+                "Angles": degree_arr, "Experiment": power_arr,
+                "Reconstruction": re_arr, 
+                "Fit_rad": sim_ang_arr, "Fit_I": sim_I, 
+                "Rounded Printout": data_print_round, "Unrounded Printout": data_print_unround, 
+                "M" : M, "xx": xx}
+    
+    if dontplot: 
+        return use_dict
+    
+    print(data_print_unround)
+    
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(5,5), dpi = 300) #subplot_kw={'projection': 'polar'}, 
+
+    ft = 0
+    if fit_top: 
+        ft = 1
+        
+    if Scatter:
+        ax.plot(sim_ang_arr, sim_I, color = "r", label = "Fit", lw = 1, zorder = 1 + ft)
+        if color_time: 
+            cmap = mpl.colormaps['viridis']
+            ax.scatter(rad_arr, power_arr, c = np.rad2deg(rad_arr/2.815), label = "Experiment", s = 1, zorder = 1, alpha = alpha)
+        if not color_time: 
+            ax.scatter(rad_arr, power_arr, color = "k", label = "Experiment", s = 1, zorder = 1, alpha = alpha)
+    if not Scatter: 
+        ax.plot(np.deg2rad(degree_arr), power_arr, color = "k", label = "Experiment", lw = 0.5)
+        ax.plot(sim_ang_arr, sim_I, color = "r", label = "Fit", lw = 0.5)
+        
+    #plt.ylim(0, 1.1)
+
+    plt.title(data_print_round)
     
     return use_dict
